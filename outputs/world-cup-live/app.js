@@ -1,5 +1,5 @@
 const STORAGE_KEY = "wc-live-settings";
-const LOCAL_API_BASE = "http://127.0.0.1:8787/api";
+const LOCAL_API_BASE = "/api";
 const WORLD_CUP_LEAGUE_ID = 1;
 const WORLD_CUP_SEASON = 2026;
 

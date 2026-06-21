@@ -1,0 +1,20 @@
+{
+  "rewrites": [
+    {
+      "source": "/assets/(.*)",
+      "destination": "/outputs/world-cup-live/assets/$1"
+    },
+    {
+      "source": "/app.js",
+      "destination": "/outputs/world-cup-live/app.js"
+    },
+    {
+      "source": "/styles.css",
+      "destination": "/outputs/world-cup-live/styles.css"
+    },
+    {
+      "source": "/",
+      "destination": "/outputs/world-cup-live/index.html"
+    }
+  ]
+}

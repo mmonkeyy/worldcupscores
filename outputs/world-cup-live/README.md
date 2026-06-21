@@ -41,3 +41,19 @@ Keep the provider key on the server. The browser should call your local API at:
 ```txt
 http://127.0.0.1:8787/api
 ```
+
+## Deploy on Vercel
+
+Import the GitHub repo in Vercel with the default project root. This repo includes root-level Vercel functions under `api/` and rewrites in `vercel.json` that serve the app from `outputs/world-cup-live`.
+
+Add this Environment Variable in Vercel before deploying:
+
+```txt
+FOOTBALL_API_KEY=your_api_football_key
+```
+
+After deployment, the browser calls the same relative API path:
+
+```txt
+/api
+```
