@@ -9,6 +9,6 @@ module.exports = (req, res) => run(req, res, async () => {
     return;
   }
 
-  res.setHeader("cache-control", "s-maxage=60, stale-while-revalidate=120");
+  res.setHeader("cache-control", "s-maxage=300, stale-while-revalidate=900");
   sendJson(res, 200, { match });
 });

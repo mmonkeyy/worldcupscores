@@ -3,6 +3,12 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY
   || process.env.GOOGLE_GENERATIVE_AI_API_KEY
   || "";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
+const MATCH_CACHE_MS = Number(process.env.MATCH_CACHE_MS || 5 * 60 * 1000);
+
+let matchCache = {
+  expiresAt: 0,
+  matches: []
+};
 
 async function health() {
   return {
@@ -47,11 +53,20 @@ async function debugStatus() {
 async function getMatches() {
   if (!GEMINI_API_KEY) return [];
 
+  if (matchCache.expiresAt > Date.now()) {
+    return matchCache.matches;
+  }
+
   try {
-    return await geminiWorldCupMatches();
+    const matches = await geminiWorldCupMatches();
+    matchCache = {
+      expiresAt: Date.now() + MATCH_CACHE_MS,
+      matches
+    };
+    return matches;
   } catch (error) {
     console.warn(`Gemini score lookup failed: ${error.message}`);
-    return [];
+    return matchCache.matches;
   }
 }
 
@@ -81,13 +96,10 @@ async function geminiTest() {
 async function geminiWorldCupMatches() {
   const today = isoDate(new Date());
   const prompt = [
-    `Today is ${today}.`,
-    "Search the web for FIFA World Cup 2026 men's tournament fixtures and scores for today.",
-    "Use sources such as FIFA match pages, Google sports results, or reputable live-score pages.",
-    "Use Google Search grounding. Return only valid JSON with this exact shape:",
+    `Today is ${today}. Search the web for FIFA World Cup 2026 men's fixtures and scores for today.`,
+    "Return only verified matches as compact JSON with this exact shape:",
     '{"matches":[{"id":"string","kickoff":"ISO date string or null","status":"live|finished|upcoming","minute":number|null,"group":"string","round":"string","venue":"string","city":"string","home":{"name":"string","score":number|null},"away":{"name":"string","score":number|null},"events":[]}]}',
-    "For finished or live matches, home.score and away.score must be numbers. For upcoming matches, scores must be null.",
-    "Include only matches you can verify from search results. If no verified World Cup matches are found, return {\"matches\":[]}."
+    "Finished/live scores must be numbers. Upcoming scores must be null. If none are verified, return {\"matches\":[]}."
   ].join(" ");
 
   const data = await geminiGenerateJson(prompt);
@@ -113,7 +125,10 @@ async function geminiGenerateJson(prompt) {
     body: JSON.stringify({
       contents: [{ parts: [{ text: prompt }] }],
       tools: [{ google_search: {} }],
-      generationConfig: { temperature: 0.1 }
+      generationConfig: {
+        maxOutputTokens: 1600,
+        temperature: 0
+      }
     })
   });
 

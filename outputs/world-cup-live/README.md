@@ -31,6 +31,8 @@ GET /api/matches/:id/events
 
 The API uses `GEMINI_API_KEY` and Gemini's Google Search grounding tool. If Gemini cannot verify World Cup score data, the app shows an empty match board instead of fake scores.
 
+Gemini search calls can be slow, so match responses are cached for a few minutes on Vercel and in warm serverless instances.
+
 For local testing, set the key before starting the server:
 
 ```powershell
