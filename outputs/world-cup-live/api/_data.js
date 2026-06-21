@@ -1,7 +1,10 @@
 const WORLD_CUP_LEAGUE_ID = process.env.WORLD_CUP_LEAGUE_ID || "1";
 const PROVIDER_BASE = trimSlash(process.env.FOOTBALL_API_BASE || "https://v3.football.api-sports.io");
 const PROVIDER_KEY = process.env.FOOTBALL_API_KEY || "";
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || "";
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY
+  || process.env.GOOGLE_API_KEY
+  || process.env.GOOGLE_GENERATIVE_AI_API_KEY
+  || "";
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
 async function health() {
@@ -36,6 +39,8 @@ async function debugStatus() {
   const result = {
     providerKeyConfigured: Boolean(PROVIDER_KEY),
     geminiKeyConfigured: Boolean(GEMINI_API_KEY),
+    geminiEnvNamesPresent: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"]
+      .filter((name) => Boolean(process.env[name])),
     providerBase: PROVIDER_BASE,
     leagueId: WORLD_CUP_LEAGUE_ID,
     checkedAt: new Date().toISOString(),
