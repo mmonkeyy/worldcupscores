@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>World Cup Live</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <header class="hero">
+        <div class="hero__media" aria-hidden="true"></div>
+        <nav class="topbar" aria-label="Primary">
+          <a class="brand" href="#matches" aria-label="World Cup Live home">
+            <span class="brand__mark">WC</span>
+            <span>World Cup Live</span>
+          </a>
+          <div class="topbar__actions">
+            <button class="icon-button" id="refreshBtn" type="button" aria-label="Refresh matches" title="Refresh matches">
+              <span aria-hidden="true">R</span>
+            </button>
+            <button class="icon-button" id="settingsBtn" type="button" aria-label="Open live data settings" title="Live data settings">
+              <span aria-hidden="true">S</span>
+            </button>
+          </div>
+        </nav>
+
+        <section class="hero__content" aria-labelledby="pageTitle">
+          <p class="eyebrow">Live fixtures, countdowns, stats, lineups</p>
+          <h1 id="pageTitle">World Cup match center</h1>
+          <p class="hero__copy">Track kickoff clocks, live scores, match momentum, lineups, and key numbers from one fast match board.</p>
+          <div class="hero__status" id="dataStatus" role="status">Sample mode</div>
+        </section>
+      </header>
+
+      <main>
+        <section class="controls" aria-label="Match filters">
+          <div class="segmented" role="tablist" aria-label="Status filter">
+            <button class="segment is-active" data-filter="all" role="tab" aria-selected="true" type="button">All</button>
+            <button class="segment" data-filter="live" role="tab" aria-selected="false" type="button">Live</button>
+            <button class="segment" data-filter="upcoming" role="tab" aria-selected="false" type="button">Upcoming</button>
+            <button class="segment" data-filter="finished" role="tab" aria-selected="false" type="button">Finished</button>
+          </div>
+          <label class="search">
+            <span class="sr-only">Search matches</span>
+            <input id="searchInput" type="search" placeholder="Search team, venue, group" autocomplete="off" />
+          </label>
+        </section>
+
+        <section class="board" id="matches" aria-label="Matches">
+          <div class="match-list" id="matchList"></div>
+          <aside class="detail" id="matchDetail" aria-label="Selected match details"></aside>
+        </section>
+      </main>
+    </div>
+
+    <dialog class="settings" id="settingsDialog" aria-labelledby="settingsTitle">
+      <form method="dialog" class="settings__panel">
+        <div class="settings__header">
+          <div>
+            <p class="eyebrow">Live data</p>
+            <h2 id="settingsTitle">API settings</h2>
+          </div>
+          <button class="icon-button" value="close" aria-label="Close settings" title="Close settings" type="submit">x</button>
+        </div>
+        <label class="field">
+          <span>Provider API key</span>
+          <input id="apiKeyInput" type="password" placeholder="Optional if using your local API" autocomplete="off" />
+        </label>
+        <label class="field">
+          <span>Endpoint base URL</span>
+          <input id="apiBaseInput" type="url" value="http://127.0.0.1:8787/api" />
+        </label>
+        <label class="field field--inline">
+          <input id="sampleModeInput" type="checkbox" />
+          <span>Use sample data only</span>
+        </label>
+        <p class="settings__note">Use your local API by default. Keep real provider keys on the server so they are not exposed in the browser.</p>
+        <menu class="settings__actions">
+          <button class="button button--ghost" id="clearSettingsBtn" type="button">Clear</button>
+          <button class="button" id="saveSettingsBtn" value="save" type="submit">Save</button>
+        </menu>
+      </form>
+    </dialog>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
