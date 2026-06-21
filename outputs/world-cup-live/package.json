@@ -2,7 +2,7 @@
   "name": "world-cup-live",
   "version": "1.0.0",
   "private": true,
-  "description": "World Cup countdown, scores, stats, lineups, and a local API.",
+  "description": "World Cup countdown, scores, stats, lineups, and Vercel API functions.",
   "scripts": {
     "start": "node api/server.js"
   }

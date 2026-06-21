@@ -315,58 +315,7 @@ function valueFor(stats, name) {
 }
 
 function sampleMatches() {
-  const now = new Date();
-
-  return [
-    {
-      id: "demo-live",
-      source: "demo",
-      kickoff: addMinutes(now, -54).toISOString(),
-      status: "upcoming",
-      minute: null,
-      group: "Demo data",
-      round: "No real provider connected",
-      venue: "Demo Stadium",
-      city: "Demo City",
-      home: { name: "Demo Team A", score: null },
-      away: { name: "Demo Team B", score: null },
-      stats: [],
-      lineups: { home: [], away: [] },
-      events: []
-    },
-    {
-      id: "demo-next",
-      source: "demo",
-      kickoff: addHours(now, 2).toISOString(),
-      status: "upcoming",
-      minute: null,
-      group: "Demo data",
-      round: "No real provider connected",
-      venue: "Demo Stadium",
-      city: "Demo City",
-      home: { name: "Demo Team C", score: null },
-      away: { name: "Demo Team D", score: null },
-      stats: [],
-      lineups: { home: [], away: [] },
-      events: []
-    },
-    {
-      id: "demo-later",
-      source: "demo",
-      kickoff: addHours(now, 26).toISOString(),
-      status: "upcoming",
-      minute: null,
-      group: "Demo data",
-      round: "No real provider connected",
-      venue: "Demo Stadium",
-      city: "Demo City",
-      home: { name: "Demo Team E", score: null },
-      away: { name: "Demo Team F", score: null },
-      stats: [],
-      lineups: { home: [], away: [] },
-      events: []
-    }
-  ];
+  return [];
 }
 
 function addDays(date, days) {

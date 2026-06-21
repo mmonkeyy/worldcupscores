@@ -1,25 +1,14 @@
-const STORAGE_KEY = "wc-live-settings";
-const LOCAL_API_BASE = "/api";
-const WORLD_CUP_LEAGUE_ID = 1;
-const WORLD_CUP_SEASON = 2026;
+const API_BASE = "/api";
 
 const els = {
   matchList: document.querySelector("#matchList"),
   matchDetail: document.querySelector("#matchDetail"),
   dataStatus: document.querySelector("#dataStatus"),
   refreshBtn: document.querySelector("#refreshBtn"),
-  settingsBtn: document.querySelector("#settingsBtn"),
-  settingsDialog: document.querySelector("#settingsDialog"),
-  apiKeyInput: document.querySelector("#apiKeyInput"),
-  apiBaseInput: document.querySelector("#apiBaseInput"),
-  sampleModeInput: document.querySelector("#sampleModeInput"),
-  saveSettingsBtn: document.querySelector("#saveSettingsBtn"),
-  clearSettingsBtn: document.querySelector("#clearSettingsBtn"),
   searchInput: document.querySelector("#searchInput"),
   filterButtons: [...document.querySelectorAll("[data-filter]")]
 };
 
-let settings = loadSettings();
 let state = {
   filter: "all",
   query: "",
@@ -29,12 +18,10 @@ let state = {
   loading: false
 };
 
-const sampleMatches = createSampleMatches();
-
 init();
 
 function init() {
-  hydrateSettingsForm();
+  localStorage.removeItem("wc-live-settings");
   bindEvents();
   refreshMatches();
   setInterval(() => render(), 1000);
@@ -42,22 +29,6 @@ function init() {
 
 function bindEvents() {
   els.refreshBtn.addEventListener("click", refreshMatches);
-  els.settingsBtn.addEventListener("click", () => els.settingsDialog.showModal());
-  els.clearSettingsBtn.addEventListener("click", () => {
-    localStorage.removeItem(STORAGE_KEY);
-    settings = loadSettings();
-    hydrateSettingsForm();
-    refreshMatches();
-  });
-  els.saveSettingsBtn.addEventListener("click", () => {
-    settings = {
-      apiKey: els.apiKeyInput.value.trim(),
-      apiBase: trimSlash(els.apiBaseInput.value.trim() || LOCAL_API_BASE),
-      sampleOnly: els.sampleModeInput.checked
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    refreshMatches();
-  });
   els.searchInput.addEventListener("input", (event) => {
     state.query = event.target.value.trim().toLowerCase();
     render();
@@ -76,27 +47,20 @@ function bindEvents() {
 
 async function refreshMatches() {
   state.loading = true;
-  updateStatus("Refreshing matches...");
+  updateStatus("Refreshing scores...");
   render();
 
   try {
-    if (!settings.sampleOnly) {
-      const health = usesLocalApi() ? await apiGet("/health") : { provider: true };
-      state.matches = await fetchLiveMatches();
-      const isDemo = state.matches.some((match) => match.source === "demo" || String(match.id).startsWith("demo"));
-      updateStatus(
-        health.provider && !isDemo
-          ? `Live provider connected - ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-          : "Demo mode - provider key missing or no World Cup feed returned"
-      );
-    } else {
-      state.matches = sampleMatches;
-      updateStatus("Sample mode forced");
-    }
+    state.matches = await fetchMatches();
+    updateStatus(
+      state.matches.length
+        ? `Scores updated - ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+        : "No World Cup matches available right now"
+    );
   } catch (error) {
     console.warn(error);
-    state.matches = sampleMatches;
-    updateStatus("Your API is offline - showing sample data");
+    state.matches = [];
+    updateStatus("Scores are temporarily unavailable");
   } finally {
     state.loading = false;
     if (!state.selectedId || !state.matches.some((match) => match.id === state.selectedId)) {
@@ -107,51 +71,22 @@ async function refreshMatches() {
   }
 }
 
-async function fetchLiveMatches() {
-  if (usesLocalApi()) {
-    const payload = await apiGet("/matches");
-    const matches = Array.isArray(payload) ? payload : payload.matches;
-    return (matches || []).map(normalizeApiMatch).sort((a, b) => a.kickoff - b.kickoff);
-  }
-
-  const today = new Date();
-  const from = isoDate(addDays(today, -2));
-  const to = isoDate(addDays(today, 7));
-  const payload = await apiGet(`/fixtures?league=${WORLD_CUP_LEAGUE_ID}&season=${WORLD_CUP_SEASON}&from=${from}&to=${to}`);
-  const matches = (payload.response || []).map(mapFixture).sort((a, b) => a.kickoff - b.kickoff);
-  return matches.length ? matches : sampleMatches;
+async function fetchMatches() {
+  const payload = await apiGet("/matches");
+  const matches = Array.isArray(payload) ? payload : payload.matches;
+  return (matches || []).map(normalizeApiMatch).sort((a, b) => a.kickoff - b.kickoff);
 }
 
 async function loadSelectedDetails() {
   const match = state.matches.find((item) => item.id === state.selectedId);
-  if (!match || state.details.has(match.id) || settings.sampleOnly || String(match.id).startsWith("sample")) {
+  if (!match || state.details.has(match.id)) {
     render();
     return;
   }
 
   try {
-    if (usesLocalApi()) {
-      const detail = await apiGet(`/matches/${encodeURIComponent(match.id)}`);
-      state.details.set(match.id, normalizeApiMatch(detail.match || detail));
-      render();
-      return;
-    }
-
-    if (!settings.apiKey) {
-      render();
-      return;
-    }
-
-    const [stats, lineups, events] = await Promise.all([
-      apiGet(`/fixtures/statistics?fixture=${match.id}`),
-      apiGet(`/fixtures/lineups?fixture=${match.id}`),
-      apiGet(`/fixtures/events?fixture=${match.id}`)
-    ]);
-    state.details.set(match.id, {
-      stats: mapStats(stats.response, match),
-      lineups: mapLineups(lineups.response, match),
-      events: mapEvents(events.response)
-    });
+    const detail = await apiGet(`/matches/${encodeURIComponent(match.id)}`);
+    state.details.set(match.id, normalizeApiMatch(detail.match || detail));
   } catch (error) {
     console.warn(error);
   }
@@ -159,8 +94,7 @@ async function loadSelectedDetails() {
 }
 
 async function apiGet(path) {
-  const headers = usesLocalApi() ? {} : { "x-apisports-key": settings.apiKey };
-  const response = await fetch(`${settings.apiBase}${path}`, { headers });
+  const response = await fetch(`${API_BASE}${path}`);
   if (!response.ok) throw new Error(`API request failed: ${response.status}`);
   return response.json();
 }
@@ -174,7 +108,7 @@ function render() {
 function renderMatchList(matches) {
   els.matchList.innerHTML = "";
   if (!matches.length) {
-    els.matchList.innerHTML = `<div class="empty">No matches match that view.</div>`;
+    els.matchList.innerHTML = `<div class="empty">${state.loading ? "Loading matches..." : "No World Cup matches available right now."}</div>`;
     return;
   }
 
@@ -211,7 +145,7 @@ function renderMatchList(matches) {
 function renderDetail() {
   const match = state.matches.find((item) => item.id === state.selectedId) || filteredMatches()[0];
   if (!match) {
-    els.matchDetail.innerHTML = `<div class="detail__section">Choose a match.</div>`;
+    els.matchDetail.innerHTML = `<div class="detail__section">Select a match when the live feed has fixtures.</div>`;
     return;
   }
 
@@ -294,76 +228,18 @@ function filteredMatches() {
   });
 }
 
-function mapFixture(item) {
-  const elapsed = item.fixture?.status?.elapsed;
-  const short = item.fixture?.status?.short;
-  const kickoff = new Date(item.fixture.date);
-  const status = ["1H", "HT", "2H", "ET", "BT", "P", "LIVE"].includes(short) ? "live" : ["FT", "AET", "PEN"].includes(short) ? "finished" : "upcoming";
-  return {
-    id: item.fixture.id,
-    kickoff,
-    status,
-    minute: elapsed,
-    group: item.league?.round || "World Cup",
-    round: item.league?.round || "Fixture",
-    venue: item.fixture?.venue?.name || "Venue TBC",
-    city: item.fixture?.venue?.city || "City TBC",
-    home: { name: item.teams?.home?.name || "Home", score: item.goals?.home },
-    away: { name: item.teams?.away?.name || "Away", score: item.goals?.away },
-    stats: [],
-    lineups: { home: [], away: [] },
-    events: []
-  };
-}
-
-function mapStats(response = [], match) {
-  const byTeam = new Map(response.map((team) => [team.team?.name, team.statistics || []]));
-  const homeStats = byTeam.get(match.home.name) || [];
-  const awayStats = byTeam.get(match.away.name) || [];
-  const names = ["Ball Possession", "Total Shots", "Shots on Goal", "Corner Kicks", "Fouls"];
-  return names.map((name) => ({
-    name,
-    home: valueFor(homeStats, name),
-    away: valueFor(awayStats, name)
-  }));
-}
-
-function mapLineups(response = [], match) {
-  const home = response.find((item) => item.team?.name === match.home.name);
-  const away = response.find((item) => item.team?.name === match.away.name);
-  return {
-    home: (home?.startXI || []).map((item) => item.player?.name).filter(Boolean),
-    away: (away?.startXI || []).map((item) => item.player?.name).filter(Boolean)
-  };
-}
-
-function mapEvents(response = []) {
-  return response.map((event) => ({
-    time: `${event.time?.elapsed || ""}'`,
-    text: `${event.team?.name || ""}: ${event.player?.name || ""} ${event.type || ""}${event.detail ? ` - ${event.detail}` : ""}`.trim()
-  }));
-}
-
-function valueFor(stats, name) {
-  const found = stats.find((item) => item.type === name);
-  return found?.value ?? "0";
-}
-
 function statusLabel(match) {
-  if (match.source === "demo" || String(match.id).startsWith("sample") || String(match.id).startsWith("demo")) return "Demo";
   if (match.status === "live") return match.minute ? `${match.minute}' live` : "Live";
   if (match.status === "finished") return "Full time";
   return "Kickoff";
 }
 
 function scoreLabel(match) {
-  if (match.source === "demo" || String(match.id).startsWith("sample") || String(match.id).startsWith("demo")) return "not live";
   if (match.status === "upcoming") return "vs";
   return `${match.home.score ?? 0} - ${match.away.score ?? 0}`;
 }
 
 function timeLabel(match) {
-  if (match.source === "demo" || String(match.id).startsWith("sample") || String(match.id).startsWith("demo")) return "Connect provider for real scores";
   if (match.status === "live") return "In progress";
   if (match.status === "finished") return "Final";
   const diff = match.kickoff - new Date();
@@ -376,82 +252,6 @@ function timeLabel(match) {
   return `${hours}h ${minutes}m ${seconds}s`;
 }
 
-function createSampleMatches() {
-  const now = new Date();
-  return [
-    {
-      id: "demo-live",
-      source: "demo",
-      kickoff: addMinutes(now, -54),
-      status: "upcoming",
-      minute: null,
-      group: "Demo data",
-      round: "No real provider connected",
-      venue: "Demo Stadium",
-      city: "Demo City",
-      home: { name: "Demo Team A", score: null },
-      away: { name: "Demo Team B", score: null },
-      stats: [],
-      lineups: { home: [], away: [] },
-      events: []
-    },
-    {
-      id: "demo-next",
-      source: "demo",
-      kickoff: addHours(now, 2),
-      status: "upcoming",
-      minute: null,
-      group: "Demo data",
-      round: "No real provider connected",
-      venue: "Demo Stadium",
-      city: "Demo City",
-      home: { name: "Demo Team C", score: null },
-      away: { name: "Demo Team D", score: null },
-      stats: [],
-      lineups: { home: [], away: [] },
-      events: []
-    },
-    {
-      id: "demo-later",
-      source: "demo",
-      kickoff: addHours(now, 26),
-      status: "upcoming",
-      minute: null,
-      group: "Demo data",
-      round: "No real provider connected",
-      venue: "Demo Stadium",
-      city: "Demo City",
-      home: { name: "Demo Team E", score: null },
-      away: { name: "Demo Team F", score: null },
-      stats: [],
-      lineups: { home: [], away: [] },
-      events: []
-    }
-  ];
-}
-
-function hydrateSettingsForm() {
-  els.apiKeyInput.value = settings.apiKey;
-  els.apiBaseInput.value = settings.apiBase;
-  els.sampleModeInput.checked = settings.sampleOnly;
-}
-
-function loadSettings() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    const apiBase = normalizeApiBase(stored.apiBase || LOCAL_API_BASE);
-    return {
-      apiKey: "",
-      apiBase,
-      sampleOnly: false,
-      ...stored,
-      apiBase
-    };
-  } catch {
-    return { apiKey: "", apiBase: LOCAL_API_BASE, sampleOnly: false };
-  }
-}
-
 function normalizeApiMatch(match) {
   return {
     ...match,
@@ -459,38 +259,8 @@ function normalizeApiMatch(match) {
   };
 }
 
-function usesLocalApi() {
-  return !settings.apiBase.includes("api-sports.io");
-}
-
-function normalizeApiBase(apiBase) {
-  const value = trimSlash(apiBase || LOCAL_API_BASE);
-  const isBrowserOnLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
-  if (!isBrowserOnLocalhost && value.includes("127.0.0.1")) return LOCAL_API_BASE;
-  if (!isBrowserOnLocalhost && value.includes("localhost")) return LOCAL_API_BASE;
-  return value;
-}
-
 function updateStatus(message) {
   els.dataStatus.textContent = message;
-}
-
-function addDays(date, days) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
-}
-
-function addHours(date, hours) {
-  return new Date(date.getTime() + hours * 3600000);
-}
-
-function addMinutes(date, minutes) {
-  return new Date(date.getTime() + minutes * 60000);
-}
-
-function isoDate(date) {
-  return date.toISOString().slice(0, 10);
 }
 
 function formatDate(date) {
@@ -501,10 +271,6 @@ function formatDate(date) {
     hour: "numeric",
     minute: "2-digit"
   }).format(date);
-}
-
-function trimSlash(value) {
-  return value.replace(/\/+$/, "");
 }
 
 function escapeHtml(value) {

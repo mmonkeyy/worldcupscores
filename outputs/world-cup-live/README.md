@@ -1,8 +1,8 @@
 # World Cup Live
 
-This project has a static frontend plus your own small local API.
+This project has a static frontend plus Vercel API functions for World Cup scores.
 
-## Start it
+## Run locally
 
 ```powershell
 cd C:\Users\anas\Documents\Codex\2026-06-21\hel\outputs\world-cup-live
@@ -29,18 +29,16 @@ GET /api/matches/:id/events
 
 ## Real live data
 
-The API works with sample data immediately. To connect a real football provider later, set an environment variable before starting the server:
+The API reads live scores from the football provider key in `FOOTBALL_API_KEY`. If the key or provider feed is unavailable, the app shows an empty match board instead of fake scores.
+
+For local testing, set the key before starting the server:
 
 ```powershell
 $env:FOOTBALL_API_KEY="your_api_football_key"
 node api\server.js
 ```
 
-Keep the provider key on the server. The browser should call your local API at:
-
-```txt
-http://127.0.0.1:8787/api
-```
+Keep the provider key on the server. The browser always calls `/api`.
 
 ## Deploy on Vercel
 

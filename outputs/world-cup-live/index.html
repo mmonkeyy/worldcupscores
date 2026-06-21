@@ -19,9 +19,6 @@
             <button class="icon-button" id="refreshBtn" type="button" aria-label="Refresh matches" title="Refresh matches">
               <span aria-hidden="true">R</span>
             </button>
-            <button class="icon-button" id="settingsBtn" type="button" aria-label="Open live data settings" title="Live data settings">
-              <span aria-hidden="true">S</span>
-            </button>
           </div>
         </nav>
 
@@ -29,7 +26,7 @@
           <p class="eyebrow">Live fixtures, countdowns, stats, lineups</p>
           <h1 id="pageTitle">World Cup match center</h1>
           <p class="hero__copy">Track kickoff clocks, live scores, match momentum, lineups, and key numbers from one fast match board.</p>
-          <div class="hero__status" id="dataStatus" role="status">Sample mode</div>
+          <div class="hero__status" id="dataStatus" role="status">Loading scores</div>
         </section>
       </header>
 
@@ -53,35 +50,6 @@
         </section>
       </main>
     </div>
-
-    <dialog class="settings" id="settingsDialog" aria-labelledby="settingsTitle">
-      <form method="dialog" class="settings__panel">
-        <div class="settings__header">
-          <div>
-            <p class="eyebrow">Live data</p>
-            <h2 id="settingsTitle">API settings</h2>
-          </div>
-          <button class="icon-button" value="close" aria-label="Close settings" title="Close settings" type="submit">x</button>
-        </div>
-        <label class="field">
-          <span>Provider API key</span>
-          <input id="apiKeyInput" type="password" placeholder="Optional if using your local API" autocomplete="off" />
-        </label>
-        <label class="field">
-          <span>Endpoint base URL</span>
-          <input id="apiBaseInput" type="text" value="/api" />
-        </label>
-        <label class="field field--inline">
-          <input id="sampleModeInput" type="checkbox" />
-          <span>Use sample data only</span>
-        </label>
-        <p class="settings__note">Use your local API by default. Keep real provider keys on the server so they are not exposed in the browser.</p>
-        <menu class="settings__actions">
-          <button class="button button--ghost" id="clearSettingsBtn" type="button">Clear</button>
-          <button class="button" id="saveSettingsBtn" value="save" type="submit">Save</button>
-        </menu>
-      </form>
-    </dialog>
 
     <script src="./app.js"></script>
   </body>
