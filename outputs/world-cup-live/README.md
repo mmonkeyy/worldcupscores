@@ -1,6 +1,6 @@
 # World Cup Live
 
-This project has a static frontend plus Vercel API functions for World Cup scores.
+This project has a static frontend plus Vercel API functions that ask Gemini with Google Search grounding for World Cup scores.
 
 ## Run locally
 
@@ -27,32 +27,24 @@ GET /api/matches/:id/lineups
 GET /api/matches/:id/events
 ```
 
-## Real live data
+## Score data
 
-The API reads live scores from the football provider key in `FOOTBALL_API_KEY`. If the key or provider feed is unavailable, the app shows an empty match board instead of fake scores.
-
-You can also set `GEMINI_API_KEY` as a fallback. When API-Football returns no data or hits quota, the server asks Gemini with Google Search grounding for verified World Cup scores and converts the response into match cards.
+The API uses `GEMINI_API_KEY` and Gemini's Google Search grounding tool. If Gemini cannot verify World Cup score data, the app shows an empty match board instead of fake scores.
 
 For local testing, set the key before starting the server:
 
 ```powershell
-$env:FOOTBALL_API_KEY="your_api_football_key"
+$env:GEMINI_API_KEY="your_gemini_key"
 node api\server.js
 ```
 
-Keep the provider key on the server. The browser always calls `/api`.
+Keep the Gemini key on the server. The browser always calls `/api`.
 
 ## Deploy on Vercel
 
 Import the GitHub repo in Vercel with the default project root. This repo includes root-level Vercel functions under `api/` and rewrites in `vercel.json` that serve the app from `outputs/world-cup-live`.
 
 Add this Environment Variable in Vercel before deploying:
-
-```txt
-FOOTBALL_API_KEY=your_api_football_key
-```
-
-Optional fallback:
 
 ```txt
 GEMINI_API_KEY=your_gemini_key
