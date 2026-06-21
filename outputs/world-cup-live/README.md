@@ -31,6 +31,8 @@ GET /api/matches/:id/events
 
 The API reads live scores from the football provider key in `FOOTBALL_API_KEY`. If the key or provider feed is unavailable, the app shows an empty match board instead of fake scores.
 
+You can also set `GEMINI_API_KEY` as a fallback. When API-Football returns no data or hits quota, the server asks Gemini with Google Search grounding for verified World Cup scores and converts the response into match cards.
+
 For local testing, set the key before starting the server:
 
 ```powershell
@@ -48,6 +50,12 @@ Add this Environment Variable in Vercel before deploying:
 
 ```txt
 FOOTBALL_API_KEY=your_api_football_key
+```
+
+Optional fallback:
+
+```txt
+GEMINI_API_KEY=your_gemini_key
 ```
 
 After deployment, the browser calls the same relative API path:
