@@ -55,12 +55,12 @@ async function refreshMatches() {
     updateStatus(
       state.matches.length
         ? `Scores updated - ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-        : "No World Cup matches available right now"
+        : "Waiting for World Cup score feed"
     );
   } catch (error) {
     console.warn(error);
     state.matches = [];
-    updateStatus("Scores are temporarily unavailable");
+    updateStatus("Score feed is temporarily unavailable");
   } finally {
     state.loading = false;
     if (!state.selectedId || !state.matches.some((match) => match.id === state.selectedId)) {
@@ -108,7 +108,7 @@ function render() {
 function renderMatchList(matches) {
   els.matchList.innerHTML = "";
   if (!matches.length) {
-    els.matchList.innerHTML = `<div class="empty">${state.loading ? "Loading matches..." : "No World Cup matches available right now."}</div>`;
+    els.matchList.innerHTML = `<div class="empty">${state.loading ? "Loading matches..." : "No score feed data is available yet."}</div>`;
     return;
   }
 
@@ -145,7 +145,7 @@ function renderMatchList(matches) {
 function renderDetail() {
   const match = state.matches.find((item) => item.id === state.selectedId) || filteredMatches()[0];
   if (!match) {
-    els.matchDetail.innerHTML = `<div class="detail__section">Select a match when the live feed has fixtures.</div>`;
+    els.matchDetail.innerHTML = `<div class="detail__section">Matches will appear here when the score feed returns World Cup fixtures.</div>`;
     return;
   }
 

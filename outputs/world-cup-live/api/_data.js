@@ -29,11 +29,31 @@ async function providerTest() {
   }
 }
 
+async function debugStatus() {
+  const result = {
+    providerKeyConfigured: Boolean(PROVIDER_KEY),
+    providerBase: PROVIDER_BASE,
+    leagueId: WORLD_CUP_LEAGUE_ID,
+    checkedAt: new Date().toISOString(),
+    checks: []
+  };
+
+  if (!PROVIDER_KEY) return result;
+
+  try {
+    const fixtures = await providerWorldCupFixtures();
+    result.checks.push({ name: "match_feed", count: fixtures.length });
+  } catch (error) {
+    result.checks.push({ name: "match_feed", error: error.message });
+  }
+
+  return result;
+}
+
 async function getMatches() {
   if (PROVIDER_KEY) {
     try {
-      const dates = datesAroundToday(-1, 3);
-      const fixtures = await providerWorldCupFixtures(dates);
+      const fixtures = await providerWorldCupFixtures();
       const matches = fixtures.map(mapProviderFixture).sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
       if (matches.length) return matches;
     } catch (error) {
@@ -72,20 +92,22 @@ async function getMatch(matchId) {
   }
 }
 
-async function providerWorldCupFixtures(dates) {
+async function providerWorldCupFixtures() {
+  return providerWorldCupFixturesByDate(isoDate(new Date()));
+}
+
+async function providerWorldCupFixturesByDate(date) {
   const fixtures = [];
   const seen = new Set();
 
-  const responses = await Promise.all(dates.map((date) => providerGet(`/fixtures?date=${date}`)));
-  for (const data of responses) {
-    for (const fixture of data.response || []) {
-      const isWorldCup = String(fixture.league?.id) === String(WORLD_CUP_LEAGUE_ID)
-        || fixture.league?.name === "World Cup";
+  const data = await providerGet(`/fixtures?date=${date}`);
+  for (const fixture of data.response || []) {
+    const isWorldCup = String(fixture.league?.id) === String(WORLD_CUP_LEAGUE_ID)
+      || fixture.league?.name === "World Cup";
 
-      if (isWorldCup && !seen.has(fixture.fixture?.id)) {
-        seen.add(fixture.fixture?.id);
-        fixtures.push(fixture);
-      }
+    if (isWorldCup && !seen.has(fixture.fixture?.id)) {
+      seen.add(fixture.fixture?.id);
+      fixtures.push(fixture);
     }
   }
 
@@ -105,7 +127,12 @@ async function providerGet(route) {
     throw new Error(`provider returned ${response.status}`);
   }
 
-  return response.json();
+  const data = await response.json();
+  if (data.errors && Object.keys(data.errors).length) {
+    throw new Error(`provider error: ${Object.values(data.errors).join(" ")}`);
+  }
+
+  return data;
 }
 
 function mapProviderFixture(item) {
@@ -178,17 +205,6 @@ function addDays(date, days) {
   return next;
 }
 
-function datesAroundToday(daysBefore, daysAfter) {
-  const today = new Date();
-  const dates = [];
-
-  for (let offset = daysBefore; offset <= daysAfter; offset += 1) {
-    dates.push(isoDate(addDays(today, offset)));
-  }
-
-  return dates;
-}
-
 function isoDate(date) {
   return date.toISOString().slice(0, 10);
 }
@@ -198,6 +214,7 @@ function trimSlash(value) {
 }
 
 module.exports = {
+  debugStatus,
   getMatch,
   getMatches,
   health,
