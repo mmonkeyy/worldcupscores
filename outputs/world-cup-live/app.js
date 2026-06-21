@@ -83,10 +83,11 @@ async function refreshMatches() {
     if (!settings.sampleOnly) {
       const health = usesLocalApi() ? await apiGet("/health") : { provider: true };
       state.matches = await fetchLiveMatches();
+      const isDemo = state.matches.some((match) => match.source === "demo" || String(match.id).startsWith("demo"));
       updateStatus(
-        health.provider
+        health.provider && !isDemo
           ? `Live provider connected - ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-          : "Demo mode - no live score provider connected"
+          : "Demo mode - provider key missing or no World Cup feed returned"
       );
     } else {
       state.matches = sampleMatches;
@@ -437,11 +438,14 @@ function hydrateSettingsForm() {
 
 function loadSettings() {
   try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    const apiBase = normalizeApiBase(stored.apiBase || LOCAL_API_BASE);
     return {
       apiKey: "",
-      apiBase: LOCAL_API_BASE,
+      apiBase,
       sampleOnly: false,
-      ...JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}")
+      ...stored,
+      apiBase
     };
   } catch {
     return { apiKey: "", apiBase: LOCAL_API_BASE, sampleOnly: false };
@@ -457,6 +461,14 @@ function normalizeApiMatch(match) {
 
 function usesLocalApi() {
   return !settings.apiBase.includes("api-sports.io");
+}
+
+function normalizeApiBase(apiBase) {
+  const value = trimSlash(apiBase || LOCAL_API_BASE);
+  const isBrowserOnLocalhost = ["localhost", "127.0.0.1"].includes(window.location.hostname);
+  if (!isBrowserOnLocalhost && value.includes("127.0.0.1")) return LOCAL_API_BASE;
+  if (!isBrowserOnLocalhost && value.includes("localhost")) return LOCAL_API_BASE;
+  return value;
 }
 
 function updateStatus(message) {

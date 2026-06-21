@@ -32,9 +32,8 @@ async function providerTest() {
 async function getMatches() {
   if (PROVIDER_KEY) {
     try {
-      const from = isoDate(addDays(new Date(), -2));
-      const to = isoDate(addDays(new Date(), 7));
-      const fixtures = await providerWorldCupFixtures(from, to);
+      const dates = datesAroundToday(-1, 3);
+      const fixtures = await providerWorldCupFixtures(dates);
       const matches = fixtures.map(mapProviderFixture).sort((a, b) => new Date(a.kickoff) - new Date(b.kickoff));
       if (matches.length) return matches;
     } catch (error) {
@@ -73,14 +72,12 @@ async function getMatch(matchId) {
   }
 }
 
-async function providerWorldCupFixtures(from, to) {
+async function providerWorldCupFixtures(dates) {
   const fixtures = [];
   const seen = new Set();
-  const current = new Date(`${from}T00:00:00.000Z`);
-  const end = new Date(`${to}T00:00:00.000Z`);
 
-  while (current <= end) {
-    const data = await providerGet(`/fixtures?date=${isoDate(current)}`);
+  const responses = await Promise.all(dates.map((date) => providerGet(`/fixtures?date=${date}`)));
+  for (const data of responses) {
     for (const fixture of data.response || []) {
       const isWorldCup = String(fixture.league?.id) === String(WORLD_CUP_LEAGUE_ID)
         || fixture.league?.name === "World Cup";
@@ -90,7 +87,6 @@ async function providerWorldCupFixtures(from, to) {
         fixtures.push(fixture);
       }
     }
-    current.setUTCDate(current.getUTCDate() + 1);
   }
 
   return fixtures;
@@ -231,6 +227,17 @@ function addDays(date, days) {
   const next = new Date(date);
   next.setDate(next.getDate() + days);
   return next;
+}
+
+function datesAroundToday(daysBefore, daysAfter) {
+  const today = new Date();
+  const dates = [];
+
+  for (let offset = daysBefore; offset <= daysAfter; offset += 1) {
+    dates.push(isoDate(addDays(today, offset)));
+  }
+
+  return dates;
 }
 
 function addHours(date, hours) {
