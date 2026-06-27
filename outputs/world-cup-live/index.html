@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>World Cup Live</title>
+    <title>World Cup Replays</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -11,9 +11,9 @@
       <header class="hero">
         <div class="hero__media" aria-hidden="true"></div>
         <nav class="topbar" aria-label="Primary">
-          <a class="brand" href="#matches" aria-label="World Cup Live home">
+          <a class="brand" href="#matches" aria-label="World Cup Replays home">
             <span class="brand__mark">WC</span>
-            <span>World Cup Live</span>
+            <span>World Cup Replays</span>
           </a>
           <div class="topbar__actions">
             <button class="icon-button" id="refreshBtn" type="button" aria-label="Refresh matches" title="Refresh matches">
@@ -23,10 +23,10 @@
         </nav>
 
         <section class="hero__content" aria-labelledby="pageTitle">
-          <p class="eyebrow">Live fixtures, countdowns, stats, lineups</p>
-          <h1 id="pageTitle">World Cup match center</h1>
-          <p class="hero__copy">Track kickoff clocks, live scores, match momentum, lineups, and key numbers from one fast match board.</p>
-          <div class="hero__status" id="dataStatus" role="status">Loading scores</div>
+          <p class="eyebrow">Goal highlights, match replays, video clips</p>
+          <h1 id="pageTitle">World Cup replay center</h1>
+          <p class="hero__copy">Open a match, click the replay count, then pick a goal or highlight clip to watch inside the match board.</p>
+          <div class="hero__status" id="dataStatus" role="status">Loading highlights</div>
         </section>
       </header>
 
@@ -34,13 +34,13 @@
         <section class="controls" aria-label="Match filters">
           <div class="segmented" role="tablist" aria-label="Status filter">
             <button class="segment is-active" data-filter="all" role="tab" aria-selected="true" type="button">All</button>
-            <button class="segment" data-filter="live" role="tab" aria-selected="false" type="button">Live</button>
-            <button class="segment" data-filter="upcoming" role="tab" aria-selected="false" type="button">Upcoming</button>
-            <button class="segment" data-filter="finished" role="tab" aria-selected="false" type="button">Finished</button>
+            <button class="segment" data-filter="goals" role="tab" aria-selected="false" type="button">Goals</button>
+            <button class="segment" data-filter="highlights" role="tab" aria-selected="false" type="button">Highlights</button>
+            <button class="segment" data-filter="latest" role="tab" aria-selected="false" type="button">Latest</button>
           </div>
           <label class="search">
             <span class="sr-only">Search matches</span>
-            <input id="searchInput" type="search" placeholder="Search team, venue, group" autocomplete="off" />
+            <input id="searchInput" type="search" placeholder="Search team, competition, clip" autocomplete="off" />
           </label>
         </section>
 

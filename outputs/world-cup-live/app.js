@@ -13,6 +13,7 @@ let state = {
   filter: "all",
   query: "",
   selectedId: null,
+  selectedClipId: null,
   matches: [],
   details: new Map(),
   loading: false
@@ -21,10 +22,8 @@ let state = {
 init();
 
 function init() {
-  localStorage.removeItem("wc-live-settings");
   bindEvents();
   refreshMatches();
-  setInterval(() => render(), 1000);
 }
 
 function bindEvents() {
@@ -47,24 +46,25 @@ function bindEvents() {
 
 async function refreshMatches() {
   state.loading = true;
-  updateStatus("Refreshing scores...");
+  updateStatus("Loading goal replays...");
   render();
 
   try {
     state.matches = await fetchMatches();
     updateStatus(
       state.matches.length
-        ? `Scores updated - ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-        : "Waiting for World Cup score feed"
+        ? `Highlights updated - ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+        : "Waiting for highlight feed"
     );
   } catch (error) {
     console.warn(error);
     state.matches = [];
-    updateStatus("Score feed is temporarily unavailable");
+    updateStatus("Highlight feed is temporarily unavailable");
   } finally {
     state.loading = false;
     if (!state.selectedId || !state.matches.some((match) => match.id === state.selectedId)) {
       state.selectedId = state.matches[0]?.id ?? null;
+      state.selectedClipId = state.matches[0]?.videos?.[0]?.id ?? null;
     }
     render();
     loadSelectedDetails();
@@ -74,12 +74,13 @@ async function refreshMatches() {
 async function fetchMatches() {
   const payload = await apiGet("/matches");
   const matches = Array.isArray(payload) ? payload : payload.matches;
-  return (matches || []).map(normalizeApiMatch).sort((a, b) => a.kickoff - b.kickoff);
+  return (matches || []).map(normalizeApiMatch);
 }
 
 async function loadSelectedDetails() {
   const match = state.matches.find((item) => item.id === state.selectedId);
   if (!match || state.details.has(match.id)) {
+    ensureSelectedClip(match);
     render();
     return;
   }
@@ -87,6 +88,7 @@ async function loadSelectedDetails() {
   try {
     const detail = await apiGet(`/matches/${encodeURIComponent(match.id)}`);
     state.details.set(match.id, normalizeApiMatch(detail.match || detail));
+    ensureSelectedClip(state.details.get(match.id));
   } catch (error) {
     console.warn(error);
   }
@@ -108,7 +110,7 @@ function render() {
 function renderMatchList(matches) {
   els.matchList.innerHTML = "";
   if (!matches.length) {
-    els.matchList.innerHTML = `<div class="empty">${state.loading ? "Loading matches..." : "No score feed data is available yet."}</div>`;
+    els.matchList.innerHTML = `<div class="empty">${state.loading ? "Loading highlights..." : "No highlight clips are available from the feed yet."}</div>`;
     return;
   }
 
@@ -122,18 +124,19 @@ function renderMatchList(matches) {
         <span class="team__name">${escapeHtml(match.home.name)}</span>
         <span class="team__meta">${escapeHtml(match.group)}</span>
       </span>
-      <span class="scorebox">
-        <span class="badge ${match.status === "live" ? "badge--live" : match.status === "upcoming" ? "badge--upcoming" : ""}">${statusLabel(match)}</span>
-        <span class="score">${scoreLabel(match)}</span>
-        <span class="countdown">${timeLabel(match)}</span>
+      <span class="scorebox" aria-label="Open replays">
+        <span class="badge badge--replay">${escapeHtml(statusLabel(match))}</span>
+        <span class="score">${escapeHtml(scoreLabel(match))}</span>
+        <span class="countdown">Pick a replay</span>
       </span>
       <span class="team team--away">
         <span class="team__name">${escapeHtml(match.away.name)}</span>
-        <span class="team__meta">${escapeHtml(match.venue)}</span>
+        <span class="team__meta">${formatDate(match.kickoff)}</span>
       </span>
     `;
     button.addEventListener("click", () => {
       state.selectedId = match.id;
+      state.selectedClipId = match.videos?.[0]?.id ?? null;
       render();
       loadSelectedDetails();
     });
@@ -145,117 +148,115 @@ function renderMatchList(matches) {
 function renderDetail() {
   const match = state.matches.find((item) => item.id === state.selectedId) || filteredMatches()[0];
   if (!match) {
-    els.matchDetail.innerHTML = `<div class="detail__section">Matches will appear here when the score feed returns World Cup fixtures.</div>`;
+    els.matchDetail.innerHTML = `<div class="detail__section">Goal replays will appear here when the highlight feed returns matches.</div>`;
     return;
   }
 
   const detail = state.details.get(match.id) || match;
+  ensureSelectedClip(detail);
+  const clip = selectedClip(detail);
   els.matchDetail.innerHTML = `
     <div class="detail__header">
-      <p class="eyebrow">${escapeHtml(match.round)}</p>
-      <h2 class="detail__title">${escapeHtml(match.home.name)} vs ${escapeHtml(match.away.name)}</h2>
-      <div class="detail__meta">${formatDate(match.kickoff)}<br>${escapeHtml(match.venue)} - ${escapeHtml(match.city)}</div>
+      <p class="eyebrow">${escapeHtml(detail.round)}</p>
+      <h2 class="detail__title">${escapeHtml(detail.home.name)} vs ${escapeHtml(detail.away.name)}</h2>
+      <div class="detail__meta">${formatDate(detail.kickoff)}<br>${escapeHtml(detail.group)}</div>
     </div>
-    <section class="detail__section">
-      <p class="eyebrow">Match stats</p>
-      ${renderStats(detail.stats || match.stats)}
+    <section class="video-player" aria-label="Selected replay">
+      ${renderVideo(clip)}
     </section>
     <section class="detail__section">
-      <p class="eyebrow">Lineups</p>
-      ${renderLineups(detail.lineups || match.lineups)}
+      <p class="eyebrow">Goals and replays</p>
+      <div class="clip-list">${renderClips(detail)}</div>
     </section>
     <section class="detail__section">
-      <p class="eyebrow">Events</p>
-      <div class="events">${renderEvents(detail.events || match.events)}</div>
+      <p class="eyebrow">Source</p>
+      <p class="source-note">Highlights are embedded from the connected video feed. Open a match, then choose a clip to watch the replay.</p>
+      ${detail.sourceUrl ? `<a class="source-link" href="${escapeAttribute(detail.sourceUrl)}" target="_blank" rel="noreferrer">Open source match page</a>` : ""}
     </section>
   `;
+
+  els.matchDetail.querySelectorAll("[data-clip-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.selectedClipId = button.dataset.clipId;
+      renderDetail();
+    });
+  });
 }
 
-function renderStats(stats) {
-  if (!stats?.length) return `<div class="empty">Stats appear once the match feed provides them.</div>`;
-  return stats.map((stat) => {
-    const homeValue = Number.parseFloat(stat.home) || 0;
-    const awayValue = Number.parseFloat(stat.away) || 0;
-    const total = Math.max(homeValue + awayValue, 1);
-    const pct = Math.round((homeValue / total) * 100);
+function renderVideo(clip) {
+  if (!clip) {
+    return `<div class="video-empty">Choose a match to load replay clips.</div>`;
+  }
+
+  if (clip.embedUrl) {
     return `
-      <div class="stat-row">
-        <span>${escapeHtml(stat.home)}</span>
-        <span>
-          <span>${escapeHtml(stat.name)}</span>
-          <span class="bar"><span style="width:${pct}%"></span></span>
-        </span>
-        <span>${escapeHtml(stat.away)}</span>
-      </div>
+      <iframe
+        src="${escapeAttribute(clip.embedUrl)}"
+        title="${escapeAttribute(clip.title)}"
+        loading="lazy"
+        allow="autoplay; fullscreen; picture-in-picture"
+        allowfullscreen>
+      </iframe>
     `;
-  }).join("");
+  }
+
+  if (clip.sourceUrl) {
+    return `<a class="video-empty" href="${escapeAttribute(clip.sourceUrl)}" target="_blank" rel="noreferrer">Open replay clip</a>`;
+  }
+
+  return `<div class="video-empty">This replay does not include an embeddable video.</div>`;
 }
 
-function renderLineups(lineups) {
-  if (!lineups?.home?.length && !lineups?.away?.length) return `<div class="empty">Lineups are usually confirmed close to kickoff.</div>`;
-  return `
-    <div class="lineups">
-      ${renderLineupColumn("Home", lineups.home)}
-      ${renderLineupColumn("Away", lineups.away)}
-    </div>
-  `;
-}
-
-function renderLineupColumn(label, players = []) {
-  return `
-    <div class="lineup">
-      <h3>${label}</h3>
-      <ol>${players.slice(0, 11).map((player) => `<li>${escapeHtml(player)}</li>`).join("")}</ol>
-    </div>
-  `;
-}
-
-function renderEvents(events) {
-  if (!events?.length) return `<div class="empty">Goals, cards, and substitutions will land here.</div>`;
-  return events.map((event) => `
-    <div class="event">
-      <strong>${escapeHtml(event.time)}</strong>
-      <span>${escapeHtml(event.text)}</span>
-    </div>
+function renderClips(match) {
+  if (!match.videos?.length) return `<div class="empty">No replay clips are attached to this match yet.</div>`;
+  return match.videos.map((clip, index) => `
+    <button class="clip-button ${clip.id === state.selectedClipId ? "is-active" : ""}" type="button" data-clip-id="${escapeAttribute(clip.id)}">
+      <span>${String(index + 1).padStart(2, "0")}</span>
+      <strong>${escapeHtml(clip.title)}</strong>
+    </button>
   `).join("");
 }
 
 function filteredMatches() {
   return state.matches.filter((match) => {
-    const haystack = `${match.home.name} ${match.away.name} ${match.venue} ${match.group} ${match.city}`.toLowerCase();
-    const statusOk = state.filter === "all" || match.status === state.filter;
-    return statusOk && (!state.query || haystack.includes(state.query));
+    const haystack = `${match.home.name} ${match.away.name} ${match.group} ${match.round}`.toLowerCase();
+    const clipTitles = (match.videos || []).map((clip) => clip.title).join(" ").toLowerCase();
+    const filterOk = state.filter === "all"
+      || (state.filter === "goals" && match.videos.some((clip) => /goal|penalty/i.test(clip.title)))
+      || (state.filter === "highlights" && match.videos.some((clip) => /highlight/i.test(clip.title)))
+      || (state.filter === "latest");
+    return filterOk && (!state.query || `${haystack} ${clipTitles}`.includes(state.query));
   });
 }
 
+function ensureSelectedClip(match) {
+  if (!match?.videos?.length) {
+    state.selectedClipId = null;
+    return;
+  }
+
+  if (!state.selectedClipId || !match.videos.some((clip) => clip.id === state.selectedClipId)) {
+    state.selectedClipId = match.videos[0].id;
+  }
+}
+
+function selectedClip(match) {
+  return match?.videos?.find((clip) => clip.id === state.selectedClipId) || match?.videos?.[0] || null;
+}
+
 function statusLabel(match) {
-  if (match.status === "live") return match.minute ? `${match.minute}' live` : "Live";
-  if (match.status === "finished") return "Full time";
-  return "Kickoff";
+  return match.videos?.some((clip) => /goal|penalty/i.test(clip.title)) ? "Goals" : "Replay";
 }
 
 function scoreLabel(match) {
-  if (match.status === "upcoming") return "vs";
-  return `${match.home.score ?? 0} - ${match.away.score ?? 0}`;
-}
-
-function timeLabel(match) {
-  if (match.status === "live") return "In progress";
-  if (match.status === "finished") return "Final";
-  const diff = match.kickoff - new Date();
-  if (diff <= 0) return "Starting soon";
-  const days = Math.floor(diff / 86400000);
-  const hours = Math.floor((diff % 86400000) / 3600000);
-  const minutes = Math.floor((diff % 3600000) / 60000);
-  const seconds = Math.floor((diff % 60000) / 1000);
-  if (days > 0) return `${days}d ${hours}h ${minutes}m`;
-  return `${hours}h ${minutes}m ${seconds}s`;
+  return match.scoreLabel || `${match.videos?.length || 0} clips`;
 }
 
 function normalizeApiMatch(match) {
   return {
     ...match,
-    kickoff: new Date(match.kickoff)
+    kickoff: new Date(match.kickoff),
+    videos: Array.isArray(match.videos) ? match.videos : []
   };
 }
 
@@ -281,4 +282,8 @@ function escapeHtml(value) {
     '"': "&quot;",
     "'": "&#039;"
   }[char]));
+}
+
+function escapeAttribute(value) {
+  return escapeHtml(value).replace(/`/g, "&#096;");
 }

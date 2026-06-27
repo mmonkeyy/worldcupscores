@@ -1,6 +1,6 @@
-# World Cup Live
+# World Cup Replays
 
-This project has a static frontend plus Vercel API functions that ask Gemini with Google Search grounding for World Cup scores.
+Static frontend plus Vercel API functions for browsing football goal highlights and match replay clips.
 
 ## Run locally
 
@@ -19,41 +19,36 @@ http://127.0.0.1:8787/
 
 ```txt
 GET /api/health
+GET /api/debug
+GET /api/provider-test
 GET /api/matches
-GET /api/matches/live
 GET /api/matches/:id
-GET /api/matches/:id/stats
-GET /api/matches/:id/lineups
 GET /api/matches/:id/events
 ```
 
-## Score data
+## Highlight data
 
-The API uses `GEMINI_API_KEY` and Gemini's Google Search grounding tool. If Gemini cannot verify World Cup score data, the app shows an empty match board instead of fake scores.
+The API is now built around video highlights instead of live score scraping. It reads a ScoreBat-compatible video feed, normalizes each match into replay clips, and caches results for a few minutes.
 
-Gemini search calls can be slow, so match responses are cached for a few minutes on Vercel and in warm serverless instances.
+Optional Vercel environment variables:
 
-For local testing, set the key before starting the server:
-
-```powershell
-$env:GEMINI_API_KEY="your_gemini_key"
-node api\server.js
+```txt
+SCOREBAT_TOKEN=your_scorebat_token
+SCOREBAT_API_KEY=your_scorebat_token
+SCOREBAT_FEED_URL=https://your-own-scorebat-compatible-feed.example.com/feed.json
+HIGHLIGHT_CACHE_MS=600000
 ```
 
-Keep the Gemini key on the server. The browser always calls `/api`.
+If no token or custom feed is set, the server tries ScoreBat's featured-feed endpoint. If that endpoint blocks the deployment, `/api/debug` will show the exact status code and the UI will show an empty highlight board instead of fake clips.
 
 ## Deploy on Vercel
 
-Import the GitHub repo in Vercel with the default project root. This repo includes root-level Vercel functions under `api/` and rewrites in `vercel.json` that serve the app from `outputs/world-cup-live`.
+Import the GitHub repo in Vercel with the default project root. The root-level `api/` directory contains the serverless functions, and `vercel.json` serves the static app from `outputs/world-cup-live`.
 
-Add this Environment Variable in Vercel before deploying:
-
-```txt
-GEMINI_API_KEY=your_gemini_key
-```
-
-After deployment, the browser calls the same relative API path:
+After deployment, check:
 
 ```txt
-/api
+/api/health
+/api/debug
+/api/matches
 ```

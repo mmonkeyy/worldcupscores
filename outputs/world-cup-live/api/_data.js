@@ -1,71 +1,93 @@
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY
-  || process.env.GOOGLE_API_KEY
-  || process.env.GOOGLE_GENERATIVE_AI_API_KEY
-  || "";
-const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
-const MATCH_CACHE_MS = Number(process.env.MATCH_CACHE_MS || 5 * 60 * 1000);
+const SCOREBAT_FEATURED_URL = "https://www.scorebat.com/video-api/v3/featured-feed/";
+const SCOREBAT_TOKEN = process.env.SCOREBAT_TOKEN || process.env.SCOREBAT_API_KEY || "";
+const SCOREBAT_FEED_URL = process.env.SCOREBAT_FEED_URL
+  || (SCOREBAT_TOKEN
+    ? `https://www.scorebat.com/video-api/v3/feed/?token=${encodeURIComponent(SCOREBAT_TOKEN)}`
+    : SCOREBAT_FEATURED_URL);
+const HIGHLIGHT_CACHE_MS = Number(process.env.HIGHLIGHT_CACHE_MS || 10 * 60 * 1000);
+const HIGHLIGHT_FETCH_TIMEOUT_MS = Number(process.env.HIGHLIGHT_FETCH_TIMEOUT_MS || 8000);
 
 let matchCache = {
   expiresAt: 0,
-  matches: []
+  matches: [],
+  lastError: null,
+  lastCheckedAt: null
 };
 
 async function health() {
   return {
     ok: true,
-    dataSource: "gemini_search_grounding",
-    geminiConfigured: Boolean(GEMINI_API_KEY),
-    geminiModel: GEMINI_MODEL,
+    dataSource: "scorebat_highlights",
+    scorebatConfigured: Boolean(SCOREBAT_TOKEN || process.env.SCOREBAT_FEED_URL),
+    feedUrl: publicFeedName(),
+    cachedMatches: matchCache.matches.length,
+    lastError: matchCache.lastError,
     time: new Date().toISOString()
   };
 }
 
 async function providerTest() {
-  return geminiTest();
+  try {
+    const matches = await fetchHighlightMatches();
+    return {
+      ok: true,
+      dataSource: "scorebat_highlights",
+      feedUrl: publicFeedName(),
+      count: matches.length
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      dataSource: "scorebat_highlights",
+      feedUrl: publicFeedName(),
+      error: "highlight_feed_failed",
+      message: error.message
+    };
+  }
 }
 
 async function debugStatus() {
   const result = {
-    dataSource: "gemini_search_grounding",
-    geminiKeyConfigured: Boolean(GEMINI_API_KEY),
-    geminiEnvNamesPresent: ["GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_GENERATIVE_AI_API_KEY"]
+    dataSource: "scorebat_highlights",
+    scorebatTokenConfigured: Boolean(SCOREBAT_TOKEN),
+    customFeedConfigured: Boolean(process.env.SCOREBAT_FEED_URL),
+    envNamesPresent: ["SCOREBAT_TOKEN", "SCOREBAT_API_KEY", "SCOREBAT_FEED_URL"]
       .filter((name) => Boolean(process.env[name])),
-    geminiModel: GEMINI_MODEL,
+    feedUrl: publicFeedName(),
+    cachedMatches: matchCache.matches.length,
+    lastError: matchCache.lastError,
     checkedAt: new Date().toISOString(),
     checks: []
   };
 
-  if (!GEMINI_API_KEY) {
-    result.checks.push({ name: "gemini_scores", error: "missing_gemini_key" });
-    return result;
-  }
-
   try {
-    const matches = await geminiWorldCupMatches();
-    result.checks.push({ name: "gemini_scores", count: matches.length });
+    const matches = await fetchHighlightMatches();
+    result.checks.push({ name: "highlight_feed", count: matches.length });
   } catch (error) {
-    result.checks.push({ name: "gemini_scores", error: error.message });
+    result.checks.push({ name: "highlight_feed", error: error.message });
   }
 
   return result;
 }
 
 async function getMatches() {
-  if (!GEMINI_API_KEY) return [];
-
   if (matchCache.expiresAt > Date.now()) {
     return matchCache.matches;
   }
 
   try {
-    const matches = await geminiWorldCupMatches();
+    const matches = await fetchHighlightMatches();
     matchCache = {
-      expiresAt: Date.now() + MATCH_CACHE_MS,
-      matches
+      expiresAt: Date.now() + HIGHLIGHT_CACHE_MS,
+      matches,
+      lastError: null,
+      lastCheckedAt: new Date().toISOString()
     };
     return matches;
   } catch (error) {
-    console.warn(`Gemini score lookup failed: ${error.message}`);
+    matchCache.lastError = error.message;
+    matchCache.lastCheckedAt = new Date().toISOString();
+    console.warn(`Highlight feed lookup failed: ${error.message}`);
     return matchCache.matches;
   }
 }
@@ -75,124 +97,110 @@ async function getMatch(matchId) {
   return matches.find((match) => String(match.id) === String(matchId)) || null;
 }
 
-async function geminiTest() {
-  if (!GEMINI_API_KEY) {
-    return { ok: false, error: "missing_gemini_key" };
-  }
-
-  try {
-    const matches = await geminiWorldCupMatches();
-    return { ok: true, dataSource: "gemini_search_grounding", count: matches.length };
-  } catch (error) {
-    return {
-      ok: false,
-      dataSource: "gemini_search_grounding",
-      error: "gemini_request_failed",
-      message: error.message
-    };
-  }
-}
-
-async function geminiWorldCupMatches() {
-  const today = isoDate(new Date());
-  const prompt = [
-    `Today is ${today}. Search the web for FIFA World Cup 2026 men's fixtures and scores for today.`,
-    "Return only verified matches as compact JSON with this exact shape:",
-    '{"matches":[{"id":"string","kickoff":"ISO date string or null","status":"live|finished|upcoming","minute":number|null,"group":"string","round":"string","venue":"string","city":"string","home":{"name":"string","score":number|null},"away":{"name":"string","score":number|null},"events":[]}]}',
-    "Finished/live scores must be numbers. Upcoming scores must be null. If none are verified, return {\"matches\":[]}."
-  ].join(" ");
-
-  const data = await geminiGenerateJson(prompt);
-  const matches = Array.isArray(data.matches) ? data.matches : [];
-
-  return matches
-    .filter((match) => match?.home?.name && match?.away?.name)
-    .map((match, index) => normalizeGeminiMatch(match, index));
-}
-
-async function geminiGenerateJson(prompt) {
+async function fetchHighlightMatches() {
   if (typeof fetch !== "function") {
     throw new Error("This Node version does not include fetch. Use Node 18 or newer.");
   }
 
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(GEMINI_MODEL)}:generateContent`;
-  const response = await fetch(url, {
-    method: "POST",
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), HIGHLIGHT_FETCH_TIMEOUT_MS);
+
+  const response = await fetch(SCOREBAT_FEED_URL, {
+    signal: controller.signal,
     headers: {
-      "content-type": "application/json",
-      "x-goog-api-key": GEMINI_API_KEY
-    },
-    body: JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      tools: [{ google_search: {} }],
-      generationConfig: {
-        maxOutputTokens: 1600,
-        temperature: 0
-      }
-    })
-  });
+      accept: "application/json,text/plain,*/*",
+      "user-agent": "worldcupscores-highlight-browser/1.0"
+    }
+  }).finally(() => clearTimeout(timeout));
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(`Gemini returned ${response.status}: ${message.slice(0, 240)}`);
+    const message = await response.text().catch(() => "");
+    throw new Error(`Highlight feed returned ${response.status}: ${message.slice(0, 180) || response.statusText}`);
   }
 
   const payload = await response.json();
-  const text = payload.candidates?.[0]?.content?.parts?.map((part) => part.text || "").join("") || "";
-  if (!text.trim()) throw new Error("Gemini returned an empty response");
-
-  try {
-    return JSON.parse(stripCodeFence(text));
-  } catch (error) {
-    throw new Error(`Gemini returned non-JSON content: ${text.slice(0, 240)}`);
-  }
+  const rows = Array.isArray(payload?.response) ? payload.response : Array.isArray(payload) ? payload : [];
+  return rows
+    .map(normalizeHighlightMatch)
+    .filter((match) => match.home.name && match.away.name && match.videos.length)
+    .sort((a, b) => new Date(b.kickoff) - new Date(a.kickoff));
 }
 
-function normalizeGeminiMatch(match, index) {
-  const kickoff = validDate(match.kickoff) || new Date();
-  const status = ["live", "finished", "upcoming"].includes(match.status) ? match.status : inferStatus(match);
-  const homeScore = parseScore(match.home.score);
-  const awayScore = parseScore(match.away.score);
+function normalizeHighlightMatch(item, index) {
+  const title = cleanText(item?.title || `Highlight match ${index + 1}`);
+  const teams = splitTeams(title);
+  const kickoff = validDate(item?.date) || new Date();
+  const videos = normalizeVideos(item, title);
+  const competition = typeof item?.competition === "object"
+    ? item.competition?.name
+    : item?.competition;
 
   return {
-    id: match.id || `gemini-${isoDate(kickoff)}-${index}`,
-    source: "gemini",
+    id: item?.matchviewUrl ? slugify(item.matchviewUrl) : slugify(`${title}-${kickoff.toISOString()}-${index}`),
+    source: "scorebat",
+    sourceUrl: item?.matchviewUrl || "",
+    thumbnail: item?.thumbnail || videos[0]?.thumbnail || "",
     kickoff: kickoff.toISOString(),
-    status,
-    minute: parseMinute(match.minute),
-    group: match.group || "World Cup",
-    round: match.round || "World Cup",
-    venue: match.venue || "Venue TBC",
-    city: match.city || "City TBC",
+    status: "finished",
+    minute: null,
+    group: cleanText(competition || "Football highlights"),
+    round: "Goal highlights",
+    venue: "Replay clips",
+    city: "Watch goals and highlights",
     home: {
-      name: match.home.name,
-      score: homeScore
+      name: teams.home,
+      score: null
     },
     away: {
-      name: match.away.name,
-      score: awayScore
+      name: teams.away,
+      score: null
     },
+    scoreLabel: `${videos.length} clip${videos.length === 1 ? "" : "s"}`,
     stats: [],
     lineups: { home: [], away: [] },
-    events: Array.isArray(match.events) ? match.events : []
+    events: videos.map((video, videoIndex) => ({
+      time: videoIndex === 0 ? "FT" : `${videoIndex + 1}`,
+      text: video.title,
+      clipId: video.id
+    })),
+    videos
   };
 }
 
-function inferStatus(match) {
-  if (parseScore(match.home?.score) !== null && parseScore(match.away?.score) !== null) return "finished";
-  return "upcoming";
+function normalizeVideos(item, title) {
+  const videos = Array.isArray(item?.videos) ? item.videos : [];
+  return videos.map((video, index) => {
+    const videoTitle = cleanText(video?.title || `${title} clip ${index + 1}`);
+    const embed = String(video?.embed || "");
+    return {
+      id: slugify(`${title}-${videoTitle}-${index}`),
+      title: videoTitle,
+      embed,
+      embedUrl: extractIframeSrc(embed),
+      thumbnail: video?.thumbnail || item?.thumbnail || "",
+      sourceUrl: video?.url || item?.matchviewUrl || ""
+    };
+  }).filter((video) => video.embedUrl || video.sourceUrl || video.embed);
 }
 
-function parseScore(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+function splitTeams(title) {
+  const normalized = title.replace(/\s+/g, " ").trim();
+  const separators = [" - ", " vs ", " v ", " Vs ", " VS "];
+  const separator = separators.find((item) => normalized.includes(item));
+  if (!separator) {
+    return { home: normalized, away: "Highlights" };
+  }
+
+  const [home, ...rest] = normalized.split(separator);
+  return {
+    home: cleanText(home),
+    away: cleanText(rest.join(separator))
+  };
 }
 
-function parseMinute(value) {
-  if (value === null || value === undefined || value === "") return null;
-  const number = Number(value);
-  return Number.isFinite(number) ? number : null;
+function extractIframeSrc(embed) {
+  const match = String(embed || "").match(/\bsrc=["']([^"']+)["']/i);
+  return match ? match[1] : "";
 }
 
 function validDate(value) {
@@ -201,12 +209,22 @@ function validDate(value) {
   return Number.isNaN(date.getTime()) ? null : date;
 }
 
-function stripCodeFence(text) {
-  return text.trim().replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "");
+function cleanText(value) {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
 }
 
-function isoDate(date) {
-  return date.toISOString().slice(0, 10);
+function slugify(value) {
+  return String(value ?? "")
+    .toLowerCase()
+    .replace(/https?:\/\//g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 96) || "highlight";
+}
+
+function publicFeedName() {
+  if (process.env.SCOREBAT_FEED_URL) return "custom_SCOREBAT_FEED_URL";
+  return SCOREBAT_TOKEN ? "scorebat_token_feed" : "scorebat_featured_feed";
 }
 
 module.exports = {
