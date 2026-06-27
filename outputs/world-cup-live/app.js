@@ -240,7 +240,7 @@ function renderEmptyState() {
   const title = meta.lastError ? "Highlight feed is blocked" : "No replay clips loaded";
   const detail = meta.lastError
     ? meta.lastError
-    : meta.setupHint || "Add a highlight feed token or custom feed URL in Vercel.";
+    : meta.setupHint || "The feed did not return any videos that can play embedded on this site.";
 
   return `
     <div class="empty empty--diagnostic">
@@ -256,7 +256,7 @@ function renderDetailEmptyState() {
   return `
     <div class="detail__section empty--diagnostic">
       <strong>Replay source needs data</strong>
-      <span>${escapeHtml(meta.setupHint || "Set SCOREBAT_TOKEN or SCOREBAT_FEED_URL in Vercel, then redeploy.")}</span>
+      <span>${escapeHtml(meta.setupHint || "No embeddable replay clips are available from the current feed.")}</span>
     </div>
   `;
 }

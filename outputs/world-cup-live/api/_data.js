@@ -6,6 +6,8 @@ const SCOREBAT_FEED_URL = process.env.SCOREBAT_FEED_URL
     : SCOREBAT_FEATURED_URL);
 const HIGHLIGHT_CACHE_MS = Number(process.env.HIGHLIGHT_CACHE_MS || 10 * 60 * 1000);
 const HIGHLIGHT_FETCH_TIMEOUT_MS = Number(process.env.HIGHLIGHT_FETCH_TIMEOUT_MS || 8000);
+const FILTER_EXTERNAL_ONLY_CLIPS = process.env.FILTER_EXTERNAL_ONLY_CLIPS !== "false";
+const BLOCKED_EMBED_PATTERN = process.env.BLOCKED_EMBED_PATTERN || "(^|:)\\s*World Cup\\b|\\bFIFA\\b";
 
 let matchCache = {
   expiresAt: 0,
@@ -54,6 +56,8 @@ async function debugStatus() {
     envNamesPresent: ["SCOREBAT_TOKEN", "SCOREBAT_API_KEY", "SCOREBAT_FEED_URL"]
       .filter((name) => Boolean(process.env[name])),
     feedUrl: publicFeedName(),
+    filterExternalOnlyClips: FILTER_EXTERNAL_ONLY_CLIPS,
+    blockedEmbedPattern: BLOCKED_EMBED_PATTERN,
     cachedMatches: matchCache.matches.length,
     lastError: matchCache.lastError,
     checkedAt: new Date().toISOString(),
@@ -138,10 +142,11 @@ function normalizeHighlightMatch(item, index) {
   const title = cleanText(item?.title || `Highlight match ${index + 1}`);
   const teams = splitTeams(title);
   const kickoff = validDate(item?.date) || new Date();
-  const videos = normalizeVideos(item, title);
   const competition = typeof item?.competition === "object"
     ? item.competition?.name
     : item?.competition;
+  const group = cleanText(competition || "Football highlights");
+  const videos = normalizeVideos(item, title, group);
 
   return {
     id: item?.matchviewUrl ? slugify(item.matchviewUrl) : slugify(`${title}-${kickoff.toISOString()}-${index}`),
@@ -151,7 +156,7 @@ function normalizeHighlightMatch(item, index) {
     kickoff: kickoff.toISOString(),
     status: "finished",
     minute: null,
-    group: cleanText(competition || "Football highlights"),
+    group,
     round: "Goal highlights",
     venue: "Replay clips",
     city: "Watch goals and highlights",
@@ -175,22 +180,24 @@ function normalizeHighlightMatch(item, index) {
   };
 }
 
-function normalizeVideos(item, title) {
+function normalizeVideos(item, title, group) {
   const videos = Array.isArray(item?.videos) ? item.videos : [];
-  return videos.map((video, index) => {
-    const videoTitle = cleanText(video?.title || `${title} clip ${index + 1}`);
-    const embed = String(video?.embed || "");
-    const embedUrl = extractIframeSrc(embed);
-    const sourceUrl = video?.url || item?.matchviewUrl || "";
-    return {
-      id: slugify(`${title}-${videoTitle}-${index}`),
-      title: videoTitle,
-      embed,
-      embedUrl,
-      thumbnail: video?.thumbnail || item?.thumbnail || "",
-      sourceUrl
-    };
-  }).filter((video) => video.embedUrl || video.sourceUrl || video.embed);
+  return videos
+    .filter((video) => !isExternalOnlyClip({ item, title, group, video }))
+    .map((video, index) => {
+      const videoTitle = cleanText(video?.title || `${title} clip ${index + 1}`);
+      const embed = String(video?.embed || "");
+      const embedUrl = extractIframeSrc(embed);
+      const sourceUrl = video?.url || item?.matchviewUrl || "";
+      return {
+        id: slugify(`${title}-${videoTitle}-${index}`),
+        title: videoTitle,
+        embed,
+        embedUrl,
+        thumbnail: video?.thumbnail || item?.thumbnail || "",
+        sourceUrl
+      };
+    }).filter((video) => video.embedUrl || video.sourceUrl || video.embed);
 }
 
 function splitTeams(title) {
@@ -237,11 +244,38 @@ function publicFeedName() {
   return SCOREBAT_TOKEN ? "scorebat_token_feed" : "scorebat_featured_feed";
 }
 
+function isExternalOnlyClip({ item, title, group, video }) {
+  if (!FILTER_EXTERNAL_ONLY_CLIPS) return false;
+  const pattern = safeBlockedPattern();
+  if (!pattern) return false;
+
+  const haystack = [
+    title,
+    group,
+    item?.competition?.name,
+    item?.matchviewUrl,
+    video?.title,
+    video?.url,
+    video?.embed
+  ].map((value) => String(value || "")).join(" ");
+
+  return pattern.test(haystack);
+}
+
+function safeBlockedPattern() {
+  try {
+    return new RegExp(BLOCKED_EMBED_PATTERN, "i");
+  } catch (error) {
+    console.warn(`Invalid BLOCKED_EMBED_PATTERN: ${error.message}`);
+    return null;
+  }
+}
+
 function sourceMeta(matches = matchCache.matches) {
   const configured = Boolean(SCOREBAT_TOKEN || process.env.SCOREBAT_FEED_URL);
   const hasMatches = matches.length > 0;
   const setupHint = configured
-    ? "The connected highlight feed returned no replay clips. Check /api/debug for the provider response."
+    ? "The feed returned no embeddable replay clips after filtering external-only videos. Check /api/debug for the provider response."
     : "Add SCOREBAT_TOKEN in Vercel, or set SCOREBAT_FEED_URL to a ScoreBat-compatible JSON feed.";
 
   return {
@@ -249,6 +283,7 @@ function sourceMeta(matches = matchCache.matches) {
     feedUrl: publicFeedName(),
     configured,
     hasMatches,
+    filterExternalOnlyClips: FILTER_EXTERNAL_ONLY_CLIPS,
     lastError: matchCache.lastError,
     lastCheckedAt: matchCache.lastCheckedAt,
     setupHint
