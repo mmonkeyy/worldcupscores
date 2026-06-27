@@ -92,6 +92,14 @@ async function getMatches() {
   }
 }
 
+async function getMatchBundle() {
+  const matches = await getMatches();
+  return {
+    matches,
+    meta: sourceMeta(matches)
+  };
+}
+
 async function getMatch(matchId) {
   const matches = await getMatches();
   return matches.find((match) => String(match.id) === String(matchId)) || null;
@@ -227,9 +235,28 @@ function publicFeedName() {
   return SCOREBAT_TOKEN ? "scorebat_token_feed" : "scorebat_featured_feed";
 }
 
+function sourceMeta(matches = matchCache.matches) {
+  const configured = Boolean(SCOREBAT_TOKEN || process.env.SCOREBAT_FEED_URL);
+  const hasMatches = matches.length > 0;
+  const setupHint = configured
+    ? "The connected highlight feed returned no replay clips. Check /api/debug for the provider response."
+    : "Add SCOREBAT_TOKEN in Vercel, or set SCOREBAT_FEED_URL to a ScoreBat-compatible JSON feed.";
+
+  return {
+    dataSource: "scorebat_highlights",
+    feedUrl: publicFeedName(),
+    configured,
+    hasMatches,
+    lastError: matchCache.lastError,
+    lastCheckedAt: matchCache.lastCheckedAt,
+    setupHint
+  };
+}
+
 module.exports = {
   debugStatus,
   getMatch,
+  getMatchBundle,
   getMatches,
   health,
   providerTest

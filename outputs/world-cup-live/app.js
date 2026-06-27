@@ -16,6 +16,7 @@ let state = {
   selectedClipId: null,
   matches: [],
   details: new Map(),
+  feedMeta: null,
   loading: false
 };
 
@@ -50,15 +51,21 @@ async function refreshMatches() {
   render();
 
   try {
-    state.matches = await fetchMatches();
+    const payload = await fetchMatches();
+    state.matches = payload.matches;
+    state.feedMeta = payload.meta;
     updateStatus(
       state.matches.length
         ? `Highlights updated - ${new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
-        : "Waiting for highlight feed"
+        : emptyStatusLabel()
     );
   } catch (error) {
     console.warn(error);
     state.matches = [];
+    state.feedMeta = {
+      lastError: error.message,
+      setupHint: "The highlight API request failed before the feed could be checked."
+    };
     updateStatus("Highlight feed is temporarily unavailable");
   } finally {
     state.loading = false;
@@ -74,7 +81,10 @@ async function refreshMatches() {
 async function fetchMatches() {
   const payload = await apiGet("/matches");
   const matches = Array.isArray(payload) ? payload : payload.matches;
-  return (matches || []).map(normalizeApiMatch);
+  return {
+    matches: (matches || []).map(normalizeApiMatch),
+    meta: payload.meta || null
+  };
 }
 
 async function loadSelectedDetails() {
@@ -110,7 +120,7 @@ function render() {
 function renderMatchList(matches) {
   els.matchList.innerHTML = "";
   if (!matches.length) {
-    els.matchList.innerHTML = `<div class="empty">${state.loading ? "Loading highlights..." : "No highlight clips are available from the feed yet."}</div>`;
+    els.matchList.innerHTML = renderEmptyState();
     return;
   }
 
@@ -148,7 +158,7 @@ function renderMatchList(matches) {
 function renderDetail() {
   const match = state.matches.find((item) => item.id === state.selectedId) || filteredMatches()[0];
   if (!match) {
-    els.matchDetail.innerHTML = `<div class="detail__section">Goal replays will appear here when the highlight feed returns matches.</div>`;
+    els.matchDetail.innerHTML = renderDetailEmptyState();
     return;
   }
 
@@ -227,6 +237,40 @@ function filteredMatches() {
       || (state.filter === "latest");
     return filterOk && (!state.query || `${haystack} ${clipTitles}`.includes(state.query));
   });
+}
+
+function renderEmptyState() {
+  if (state.loading) return `<div class="empty">Loading highlights...</div>`;
+
+  const meta = state.feedMeta || {};
+  const title = meta.lastError ? "Highlight feed is blocked" : "No replay clips loaded";
+  const detail = meta.lastError
+    ? meta.lastError
+    : meta.setupHint || "Add a highlight feed token or custom feed URL in Vercel.";
+
+  return `
+    <div class="empty empty--diagnostic">
+      <strong>${escapeHtml(title)}</strong>
+      <span>${escapeHtml(detail)}</span>
+      <code>/api/debug</code>
+    </div>
+  `;
+}
+
+function renderDetailEmptyState() {
+  const meta = state.feedMeta || {};
+  return `
+    <div class="detail__section empty--diagnostic">
+      <strong>Replay source needs data</strong>
+      <span>${escapeHtml(meta.setupHint || "Set SCOREBAT_TOKEN or SCOREBAT_FEED_URL in Vercel, then redeploy.")}</span>
+    </div>
+  `;
+}
+
+function emptyStatusLabel() {
+  if (state.feedMeta?.lastError) return "Highlight feed blocked";
+  if (state.feedMeta?.configured) return "Highlight feed returned no clips";
+  return "Connect highlight feed";
 }
 
 function ensureSelectedClip(match) {

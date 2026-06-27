@@ -41,6 +41,18 @@ HIGHLIGHT_CACHE_MS=600000
 
 If no token or custom feed is set, the server tries ScoreBat's featured-feed endpoint. If that endpoint blocks the deployment, `/api/debug` will show the exact status code and the UI will show an empty highlight board instead of fake clips.
 
+If the deployed page says `Connect highlight feed`, add one of these in Vercel Project Settings -> Environment Variables, then redeploy:
+
+```txt
+SCOREBAT_TOKEN=your_scorebat_token
+```
+
+or:
+
+```txt
+SCOREBAT_FEED_URL=https://your-json-feed-url.example.com/feed.json
+```
+
 ## Deploy on Vercel
 
 Import the GitHub repo in Vercel with the default project root. The root-level `api/` directory contains the serverless functions, and `vercel.json` serves the static app from `outputs/world-cup-live`.

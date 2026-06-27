@@ -2,7 +2,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 const { URL } = require("url");
-const { debugStatus, getMatch, getMatches, health, providerTest } = require("./_data");
+const { debugStatus, getMatch, getMatchBundle, getMatches, health, providerTest } = require("./_data");
 
 const PORT = Number(process.env.PORT || 8787);
 const HOST = process.env.HOST || "127.0.0.1";
@@ -52,7 +52,7 @@ async function routeApi(req, res, reqUrl) {
   }
 
   if (reqUrl.pathname === "/api/matches") {
-    sendJson(res, 200, { matches: await getMatches() });
+    sendJson(res, 200, await getMatchBundle());
     return;
   }
 

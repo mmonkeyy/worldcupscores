@@ -598,6 +598,27 @@ main {
   color: var(--muted);
 }
 
+.empty--diagnostic {
+  display: grid;
+  gap: 10px;
+  line-height: 1.45;
+}
+
+.empty--diagnostic strong {
+  color: var(--ink);
+  font-size: 1rem;
+}
+
+.empty--diagnostic code {
+  width: fit-content;
+  border: 1px solid rgba(47, 226, 124, 0.32);
+  border-radius: 8px;
+  background: rgba(47, 226, 124, 0.1);
+  color: var(--green);
+  padding: 6px 8px;
+  font-weight: 900;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;
