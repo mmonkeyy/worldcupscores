@@ -388,10 +388,13 @@ main {
 .video-player {
   background: #050808;
   border-bottom: 1px solid var(--line);
+}
+
+.video-shell {
   aspect-ratio: 16 / 9;
 }
 
-.video-player iframe,
+.video-shell iframe,
 .video-empty {
   display: grid;
   width: 100%;
@@ -405,6 +408,20 @@ main {
   color: var(--muted);
   text-align: center;
   text-decoration: none;
+}
+
+.video-fallback {
+  display: block;
+  border-top: 1px solid var(--line);
+  color: var(--green);
+  padding: 12px 14px;
+  text-align: center;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.video-fallback:hover {
+  background: rgba(47, 226, 124, 0.1);
 }
 
 .clip-list {

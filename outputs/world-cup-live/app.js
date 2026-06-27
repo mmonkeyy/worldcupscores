@@ -198,15 +198,20 @@ function renderVideo(clip) {
     return `<div class="video-empty">Choose a match to load replay clips.</div>`;
   }
 
-  if (clip.embedUrl) {
+  const playerUrl = clip.playerUrl || clip.embedUrl;
+  if (playerUrl) {
     return `
-      <iframe
-        src="${escapeAttribute(clip.embedUrl)}"
-        title="${escapeAttribute(clip.title)}"
-        loading="lazy"
-        allow="autoplay; fullscreen; picture-in-picture"
-        allowfullscreen>
-      </iframe>
+      <div class="video-shell">
+        <iframe
+          src="${escapeAttribute(playerUrl)}"
+          title="${escapeAttribute(clip.title)}"
+          loading="lazy"
+          referrerpolicy="origin"
+          allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+          allowfullscreen>
+        </iframe>
+      </div>
+      ${clip.sourceUrl ? `<a class="video-fallback" href="${escapeAttribute(clip.sourceUrl)}" target="_blank" rel="noreferrer">Open replay in ScoreBat</a>` : ""}
     `;
   }
 

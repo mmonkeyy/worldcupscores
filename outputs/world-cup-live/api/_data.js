@@ -180,13 +180,16 @@ function normalizeVideos(item, title) {
   return videos.map((video, index) => {
     const videoTitle = cleanText(video?.title || `${title} clip ${index + 1}`);
     const embed = String(video?.embed || "");
+    const embedUrl = extractIframeSrc(embed);
+    const sourceUrl = video?.url || item?.matchviewUrl || "";
     return {
       id: slugify(`${title}-${videoTitle}-${index}`),
       title: videoTitle,
       embed,
-      embedUrl: extractIframeSrc(embed),
+      embedUrl,
+      playerUrl: sourceUrl || embedUrl,
       thumbnail: video?.thumbnail || item?.thumbnail || "",
-      sourceUrl: video?.url || item?.matchviewUrl || ""
+      sourceUrl
     };
   }).filter((video) => video.embedUrl || video.sourceUrl || video.embed);
 }
