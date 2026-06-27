@@ -410,20 +410,6 @@ main {
   text-decoration: none;
 }
 
-.video-fallback {
-  display: block;
-  border-top: 1px solid var(--line);
-  color: var(--green);
-  padding: 12px 14px;
-  text-align: center;
-  font-weight: 900;
-  text-decoration: none;
-}
-
-.video-fallback:hover {
-  background: rgba(47, 226, 124, 0.1);
-}
-
 .clip-list {
   display: grid;
   gap: 10px;
@@ -464,16 +450,6 @@ main {
 .clip-button strong {
   overflow-wrap: anywhere;
   line-height: 1.25;
-}
-
-.source-note {
-  color: var(--soft);
-  line-height: 1.5;
-}
-
-.source-link {
-  color: var(--green);
-  font-weight: 900;
 }
 
 .stat-row {

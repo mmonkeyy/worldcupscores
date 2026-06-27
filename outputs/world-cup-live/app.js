@@ -178,11 +178,6 @@ function renderDetail() {
       <p class="eyebrow">Goals and replays</p>
       <div class="clip-list">${renderClips(detail)}</div>
     </section>
-    <section class="detail__section">
-      <p class="eyebrow">Source</p>
-      <p class="source-note">Highlights are embedded from the connected video feed. Open a match, then choose a clip to watch the replay.</p>
-      ${detail.sourceUrl ? `<a class="source-link" href="${escapeAttribute(detail.sourceUrl)}" target="_blank" rel="noreferrer">Open source match page</a>` : ""}
-    </section>
   `;
 
   els.matchDetail.querySelectorAll("[data-clip-id]").forEach((button) => {
@@ -198,12 +193,11 @@ function renderVideo(clip) {
     return `<div class="video-empty">Choose a match to load replay clips.</div>`;
   }
 
-  const playerUrl = clip.playerUrl || clip.embedUrl;
-  if (playerUrl) {
+  if (clip.embedUrl) {
     return `
       <div class="video-shell">
         <iframe
-          src="${escapeAttribute(playerUrl)}"
+          src="${escapeAttribute(clip.embedUrl)}"
           title="${escapeAttribute(clip.title)}"
           loading="lazy"
           referrerpolicy="origin"
@@ -211,12 +205,7 @@ function renderVideo(clip) {
           allowfullscreen>
         </iframe>
       </div>
-      ${clip.sourceUrl ? `<a class="video-fallback" href="${escapeAttribute(clip.sourceUrl)}" target="_blank" rel="noreferrer">Open replay in ScoreBat</a>` : ""}
     `;
-  }
-
-  if (clip.sourceUrl) {
-    return `<a class="video-empty" href="${escapeAttribute(clip.sourceUrl)}" target="_blank" rel="noreferrer">Open replay clip</a>`;
   }
 
   return `<div class="video-empty">This replay does not include an embeddable video.</div>`;

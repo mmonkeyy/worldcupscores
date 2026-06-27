@@ -187,7 +187,6 @@ function normalizeVideos(item, title) {
       title: videoTitle,
       embed,
       embedUrl,
-      playerUrl: sourceUrl || embedUrl,
       thumbnail: video?.thumbnail || item?.thumbnail || "",
       sourceUrl
     };
